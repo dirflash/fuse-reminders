@@ -1,7 +1,11 @@
 import csv
 
+from utils import preferences as p
+
 # Define the path to your file
 file_path = "./CSV/20240209-Fuse.csv"
+
+fuse_date = "1/1/2024"
 
 try:
     with open(file_path, "r") as file:
@@ -44,7 +48,32 @@ for attendee in attendees:
     else:
         no_response.add(attendee[2])
 
-print(f"Accepted ({len(accepted)})")
-print(f"Declined ({len(declined)})")
-print(f"Tentative ({len(tentative)})")
-print(f"No response ({len(no_response)})")
+print("Attendees:")
+print(f" Accepted: {len(accepted)}")
+print(f" Declined: {len(declined)}")
+print(f" Tentative: {len(tentative)}")
+print(f" No response: {len(no_response)}")
+
+# Does cwa_attendees record exist for this date?
+if p.cwa_attendees.find_one({"date": fuse_date}):
+    print(f"Record for {fuse_date} exists.")
+else:
+    # Create the record
+    p.cwa_attendees.insert_one({"date": fuse_date})
+    print(f"Record for {fuse_date} created.")
+
+# Add responses to the database
+print("Adding SE responses to the database")
+p.cwa_attendees.update_one(
+    {"date": fuse_date},
+    {
+        "$push": {
+            "accepted": {"$each": [x for x in accepted]},
+            "declined": {"$each": [x for x in declined]},
+            "tentative": {"$each": [x for x in tentative]},
+            "no_response": {"$each": [x for x in no_response]},
+        },
+    },
+)
+
+print("")
