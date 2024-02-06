@@ -3,24 +3,32 @@ from utils import preferences as p
 
 def accepted_body(s_date):
     body_1 = (
-        f"Hello SE! We noticed you are confirmed for the next Fuse session on {s_date}. "
-        f"Your confirmation helps us to plan the pairings."
+        f"Your current Outlook status for the upcoming FUSE session on {s_date} is: ACCEPTED. "
+        f"\n\nTHANK YOU for participating and contributing to the strengthening of the best group of SAs at Cisco. "
+        f"\n\nA FUSE partner will be aligned for you, so please expect to reach out to your partner, "
+        f"or for your partner to reach out to you once assigned during the session. "
+        f"\n\nIf your plans change, please send an ACCEPT or DECLINE to the Outlook invite ASAP "
+        f"so that the pairings can be adjusted for the day."
     )
     return body_1
 
 
 def tentative_body(s_date):
     body_1 = (
-        f"Hello SE! We noticed you are tentative for the next Fuse session on {s_date}. "
-        f"Your confirmation helps us to plan the pairings."
+        f"Your current Outlook status for the upcoming FUSE session on {s_date} is: TENTATIVE "
+        f"\n\nWe sincerely hope that you can join us. "
+        f"\n\nIf possible, please send an ACCEPT or DECLINE to the Outlook invite ASAP so that "
+        f"the pairings can be determined for the day.  If you remain tentative, we will do our "
+        f"best to accommodate a pairing during the session. Thank you!"
     )
     return body_1
 
 
 def no_response_body(s_date):
     body_1 = (
-        f"Hello SE! We noticed you have not confirmed your availability for the next Fuse session on {s_date}. "
-        f"Your confirmation helps us to plan the pairings."
+        f"Your current Outlook status for the upcoming FUSE session on {s_date} is: NO RESPONSE "
+        f"\n\nPlease send an ACCEPT or DECLINE to the Outlook invite ASAP so that the pairings can "
+        f"be finalized for the day.  Thank you!"
     )
     return body_1
 
@@ -72,7 +80,7 @@ def reminder_card(s_date, card_type):
                             "text": body_1,
                             "wrap": True,
                             "fontType": "Monospace",
-                            "size": "Default",
+                            "size": "Small",
                             "weight": "Bolder",
                         },
                         {
@@ -81,7 +89,7 @@ def reminder_card(s_date, card_type):
                             "text": body_2,
                             "fontType": "Monospace",
                             "weight": "Bolder",
-                            "size": "Default",
+                            "size": "Small",
                         },
                     ],
                 },

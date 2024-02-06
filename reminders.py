@@ -7,7 +7,7 @@ from cards import reminder_card
 from utils import preferences as p
 
 # Define the path to your file
-file_path = "./CSV/20240209-Fuse.csv"
+file_path = "./CSV/Test-Fuse.csv"
 
 fuse_date = "1/1/2024"
 max_retries = 3
@@ -16,7 +16,7 @@ retry_delay = 5  # Delay between retries in seconds
 post_msg_url = "https://webexapis.com/v1/messages/"
 
 headers = {
-    "Authorization": p.test_webex_bearer,
+    "Authorization": p.fusebot_help_bearer,
     "Content-Type": "application/json",
 }
 
