@@ -16,7 +16,7 @@ def accepted_body(s_date):
 def tentative_body(s_date):
     body_1 = (
         f"Your current Outlook status for the upcoming FUSE session on {s_date} is: TENTATIVE "
-        f"\n\nWe sincerely hope that you can join us. "
+        f"\n\nWe sincerely hope that you can join us. We are excited to welcome a special guest, Marcus Moffett. "
         f"\n\nIf possible, please send an ACCEPT or DECLINE to the Outlook invite ASAP so that "
         f"the pairings can be determined for the day.  If you remain tentative, we will do our "
         f"best to accommodate a pairing during the session. Thank you!"
@@ -28,7 +28,7 @@ def no_response_body(s_date):
     body_1 = (
         f"Your current Outlook status for the upcoming FUSE session on {s_date} is: NO RESPONSE "
         f"\n\nPlease send an ACCEPT or DECLINE to the Outlook invite ASAP so that the pairings can "
-        f"be finalized for the day.  Thank you!"
+        f"be finalized for the day.  We are excited to welcome a special guest, Marcus Moffett. "
     )
     return body_1
 
@@ -68,7 +68,7 @@ def reminder_card(s_date, card_type):
                     "items": [
                         {
                             "type": "TextBlock",
-                            "text": "Fuse Session RSVP Confirmation",
+                            "text": "FUSE Session RSVP Confirmation",
                             "wrap": True,
                             "horizontalAlignment": "Center",
                             "fontType": "Monospace",

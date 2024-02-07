@@ -1,9 +1,13 @@
 import asyncio
 import csv
+import json
+from time import perf_counter, sleep
 
 import aiohttp
+from pymongo import UpdateOne
+from pymongo.errors import BulkWriteError, ConnectionFailure
 
-from cards import reminder_card
+from cards import reminder_card as rc
 from utils import preferences as p
 
 # Define the path to your file
@@ -19,6 +23,8 @@ headers = {
     "Authorization": p.fusebot_help_bearer,
     "Content-Type": "application/json",
 }
+
+start_timer = perf_counter()
 
 
 async def send_message(session, email, payload, message_type):
@@ -37,21 +43,27 @@ async def send_message(session, email, payload, message_type):
                     )  # Default to 5 seconds if Retry-After header is not provided
                     if too_many_requests_counter < too_many_requests_limit:
                         print(
-                            f"Too many requests, retrying in {retry_after} seconds..."
+                            f" Too many requests, retrying in {retry_after} seconds..."
                         )
                         too_many_requests_counter += 1
                     await asyncio.sleep(
                         retry_after
                     )  # Pause execution for 'retry_after' seconds
                     continue
-                response.raise_for_status()
+                elif response.status == 200:
+                    print(
+                        f" Sent {message_type} message to {email} ({response.status})"
+                    )
+                    response_text = await response.text()
+                    message_id = json.loads(response_text)["id"]
+                    # Increment the counter for the message type
+                    message_counter[message_type] += 1
+                    return [message_id, email, 200]
+                else:
+                    print(f" Unexpected status {response.status}")
+                    return None
         except Exception as e:
-            print(f"Failed to send {message_type} message to {email} due to {str(e)}")
-        else:
-            print(f" Sent {message_type} message to {email}")
-            # Increment the counter for the message type
-            message_counter[message_type] += 1
-            break
+            print(f" Failed to send {message_type} message to {email} due to {str(e)}")
 
 
 async def main():
@@ -60,17 +72,47 @@ async def main():
         for message_type, message_set in message_sets.items():
             if message_set:
                 # Create the attachment inside the loop
-                attachment = reminder_card.reminder_card(fuse_date, message_type)
+                attachment = rc.reminder_card(fuse_date, message_type)
                 for person in message_set:
                     email = f"{person}@cisco.com"
                     payload = {
-                        "toPersonEmail": p.test_email,  # email,
+                        "toPersonEmail": email,
                         "markdown": "Adaptive card response. Open the message on a supported client to respond.",
                         "attachments": attachment,
                     }
                     tasks.append(send_message(session, email, payload, message_type))
 
-        await asyncio.gather(*tasks)
+        results = await asyncio.gather(*tasks)
+
+        # Update the reminders database with the message status and message id
+        if results is not None:
+            operations = []
+            for i, (message_id, email, status) in enumerate(results):
+                print(f" Adding {email} message status to reminders database")
+                alias = email.replace("@cisco.com", "")
+                operations.append(
+                    UpdateOne(
+                        {"date": fuse_date},
+                        {"$set": {alias: [message_id, email, status]}},
+                        upsert=True,
+                    )
+                )
+                for _ in range(5):
+                    try:
+                        reminder_updates = p.cwa_reminders.bulk_write(operations)
+                        if reminder_updates.upserted_ids:
+                            print(
+                                f"  MongoDB upserted {len(reminder_updates.upserted_ids)} records."
+                            )
+                        break
+                    except BulkWriteError as bwe:
+                        print("Bulk Write Error: ", bwe.details)
+                        print(
+                            "  *** Sleeping for {pow(2, _)} seconds and trying again ***"
+                        )
+                        sleep(pow(2, _))
+                    except Exception as e:
+                        print("An unexpected error occurred: ", e)
 
         # Print the message counter at the end
         print("Sent message count by type:", message_counter)
@@ -125,26 +167,40 @@ print(f" Tentative: {len(tentative)}")
 print(f" No response: {len(no_response)}")
 
 # Does cwa_attendees record exist for this date?
-if p.cwa_attendees.find_one({"date": fuse_date}):
-    print(f"Record for {fuse_date} exists.")
-else:
-    # Create the record
-    p.cwa_attendees.insert_one({"date": fuse_date})
-    print(f"Record for {fuse_date} created.")
+for _ in range(5):
+    try:
+        if p.cwa_attendees.find_one({"date": fuse_date}):
+            print(f" Record for {fuse_date} exists.")
+        else:
+            # Create the record
+            p.cwa_attendees.insert_one({"date": fuse_date})
+            print(f" Record for {fuse_date} created.")
+        break
+    except ConnectionFailure as cf:
+        print(" Connection Failure looking up attendees record: ", cf)
+        print("  *** Sleeping for {pow(2, _)} seconds and trying again ***")
+        sleep(pow(2, _))
 
 # Add responses to the database
-print("Adding SE responses to the database")
-p.cwa_attendees.update_one(
-    {"date": fuse_date},
-    {
-        "$push": {
-            "accepted": {"$each": [x for x in accept]},
-            "declined": {"$each": [x for x in decline]},
-            "tentative": {"$each": [x for x in tentative]},
-            "no_response": {"$each": [x for x in no_response]},
-        },
-    },
-)
+print("Adding SE responses to attendees database")
+for _ in range(5):
+    try:
+        p.cwa_attendees.update_one(
+            {"date": fuse_date},
+            {
+                "$push": {
+                    "accepted": {"$each": [x for x in accept]},
+                    "declined": {"$each": [x for x in decline]},
+                    "tentative": {"$each": [x for x in tentative]},
+                    "no_response": {"$each": [x for x in no_response]},
+                },
+            },
+        )
+        break
+    except ConnectionFailure as cf:
+        print(" Connection Failure adding responses to attendees database: ", cf)
+        print("  *** Sleeping for {pow(2, _)} seconds and trying again ***")
+        sleep(pow(2, _))
 
 # Define the sets
 message_sets = {
@@ -162,3 +218,6 @@ message_counter = {
 
 # Run the main function
 asyncio.run(main())
+
+stop_timer = perf_counter()
+print(f"Time: {stop_timer - start_timer:.2f} seconds")
