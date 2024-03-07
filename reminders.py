@@ -89,36 +89,6 @@ async def main():
         results = await asyncio.gather(*tasks)
 
         # Update the reminders database with the message status and message id
-        """if results is not None:
-            operations = []
-            for i, (message_id, email, status) in enumerate(results):
-                print(f" Adding {email} message status to reminders database")
-                alias = email.replace("@cisco.com", "")
-                operations.append(
-                    UpdateOne(
-                        {"date": fuse_date},
-                        {"$set": {alias: [message_id, email, status]}},
-                        upsert=True,
-                    )
-                )
-                for _ in range(5):
-                    try:
-                        reminder_updates = p.cwa_reminders.bulk_write(operations)
-                        if reminder_updates.upserted_ids:
-                            print(
-                                f"  MongoDB upserted {len(reminder_updates.upserted_ids)} records."
-                            )
-                        break
-                    except BulkWriteError as bwe:
-                        print("Bulk Write Error: ", bwe.details)
-                        print(
-                            "  *** Sleeping for {pow(2, _)} seconds and trying again ***"
-                        )
-                        sleep(pow(2, _))
-                    except Exception as e:
-                        print("An unexpected error occurred: ", e)"""
-
-        # Update the reminders database with the message status and message id
         if results is not None:
             operations = []
             for i, result in enumerate(results):
