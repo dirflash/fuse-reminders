@@ -1,6 +1,7 @@
 import asyncio
 import csv
 import json
+import sys
 from time import perf_counter, sleep
 
 import aiohttp
@@ -11,10 +12,9 @@ from cards import reminder_card as rc
 from utils import preferences as p
 
 # Define the path to your file
-file_path = "./CSV/Test-Fuse.csv"
+file_path = "./CSV/20240308-Fuse.csv"
 
-fuse_date = "1/1/2024"
-max_retries = 3
+fuse_date = "3/8/2024"
 retry_delay = 5  # Delay between retries in seconds
 
 post_msg_url = "https://webexapis.com/v1/messages/"
@@ -50,7 +50,7 @@ async def send_message(session, email, payload, message_type):
                         retry_after
                     )  # Pause execution for 'retry_after' seconds
                     continue
-                elif response.status == 200:
+                if response.status == 200:
                     print(
                         f" Sent {message_type} message to {email} ({response.status})"
                     )
@@ -59,9 +59,8 @@ async def send_message(session, email, payload, message_type):
                     # Increment the counter for the message type
                     message_counter[message_type] += 1
                     return [message_id, email, 200]
-                else:
-                    print(f" Unexpected status {response.status}")
-                    return None
+                print(f" Unexpected status ({response.status}) sending to {email}")
+                return None
         except Exception as e:
             print(f" Failed to send {message_type} message to {email} due to {str(e)}")
 
@@ -69,15 +68,20 @@ async def send_message(session, email, payload, message_type):
 async def main():
     async with aiohttp.ClientSession() as session:
         tasks = []
+        markdown_msg = (
+            "Adaptive card response. Open the message on a supported client to respond."
+        )
         for message_type, message_set in message_sets.items():
             if message_set:
                 # Create the attachment inside the loop
                 attachment = rc.reminder_card(fuse_date, message_type)
                 for person in message_set:
-                    email = f"{person}@cisco.com"
+                    email = (
+                        f"{person}@cisco.com"  # < --- change to p.test_email for test
+                    )
                     payload = {
                         "toPersonEmail": email,
-                        "markdown": "Adaptive card response. Open the message on a supported client to respond.",
+                        "markdown": markdown_msg,
                         "attachments": attachment,
                     }
                     tasks.append(send_message(session, email, payload, message_type))
@@ -85,7 +89,7 @@ async def main():
         results = await asyncio.gather(*tasks)
 
         # Update the reminders database with the message status and message id
-        if results is not None:
+        """if results is not None:
             operations = []
             for i, (message_id, email, status) in enumerate(results):
                 print(f" Adding {email} message status to reminders database")
@@ -112,7 +116,47 @@ async def main():
                         )
                         sleep(pow(2, _))
                     except Exception as e:
+                        print("An unexpected error occurred: ", e)"""
+
+        # Update the reminders database with the message status and message id
+        if results is not None:
+            operations = []
+            for i, result in enumerate(results):
+                try:
+                    message_id, email, status = result  # Attempt to unpack the tuple
+                    print(f"Adding {email} message status to reminders database")
+                    alias = email.replace("@cisco.com", "")
+                    operations.append(
+                        UpdateOne(
+                            {"date": fuse_date},
+                            {"$set": {alias: [message_id, email, status]}},
+                            upsert=True,
+                        )
+                    )
+                except TypeError as te:
+                    print(f"TypeError for record {result}: {te} - skipping record")
+                    continue  # Skip this record and continue with the next
+
+            # Only perform the bulk write if there are operations to execute
+            if operations:
+                for attempt in range(5):
+                    try:
+                        reminder_updates = p.cwa_reminders.bulk_write(operations)
+                        if reminder_updates.upserted_ids:
+                            print(
+                                f"MongoDB upserted {len(reminder_updates.upserted_ids)} records."
+                            )
+                        break  # Exit the retry loop if successful
+                    except BulkWriteError as bwe:
+                        print("Bulk Write Error: ", bwe.details)
+                        sleep_duration = pow(2, attempt)
+                        print(
+                            f"*** Sleeping for {sleep_duration} seconds and trying again ***"
+                        )
+                        sleep(sleep_duration)  # Exponential backoff
+                    except Exception as e:
                         print("An unexpected error occurred: ", e)
+                        break  # Exit the retry loop if an unexpected exception occurs
 
         # Print the message counter at the end
         print("Sent message count by type:", message_counter)
@@ -120,7 +164,7 @@ async def main():
 
 
 try:
-    with open(file_path, "r") as file:
+    with open(file_path, "r", encoding="utf-8") as file:
         # Use csv.reader to handle CSV files
         csv_reader = csv.reader(file)
 
@@ -143,7 +187,7 @@ try:
 
 except FileNotFoundError:
     print("File not found")
-    exit(1)
+    sys.exit(1)
 
 accept = set()
 decline = set()

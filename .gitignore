@@ -3,6 +3,7 @@ __pycache__
 .venv
 .vscode
 /CSV/*
+/logs/*
 .mypy_cache/*
 utils/preferences.py
 *.csv
